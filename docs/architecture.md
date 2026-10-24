@@ -30,10 +30,17 @@ Jangan mengunci versi dependency secara membabi buta. Saat mulai, periksa versi 
 
 ## 3. Hosting
 
-Evaluasi pilihan hosting sebelum deployment:
-- Firebase Hosting cocok untuk aset statis dan konfigurasi yang sesuai.
-- Next.js dengan server-side features mungkin memerlukan Firebase App Hosting atau deployment backend yang mendukungnya.
-- Jangan mengasumsikan seluruh fitur hosting/backend selalu gratis. Periksa paket, kuota, billing, region, dan layanan yang diperlukan.
+Keputusan: **Vercel** (Hobby plan) untuk aplikasi Next.js App Router.
+- Vercel secara otomatis mendeteksi Next.js dan menjalankan `next build` / `next start`, mendukung
+  SSR, Server Actions, Server Component rendering, dan middleware tanpa konfigurasi tambahan.
+- Firebase Authentication dan Cloud Firestore tetap digunakan sebagai layanan backend; keduanya
+  kompatibel dengan Firebase Spark plan (tidak perlu upgrade ke Blaze).
+- Firebase Admin SDK berjalan di sisi server (API routes dan Server Actions) dengan kredensial
+  dari variabel lingkungan Vercel; kredensial tidak pernah muncul di klien.
+- Firebase Hosting dan Firebase App Hosting tidak digunakan; `apphosting.yaml` telah dihapus,
+  dan `firebase.json` tidak lagi berisi blok hosting.
+- Jangan mengasumsikan seluruh fitur hosting selalu gratis. Periksa paket, kuota, billing,
+  region, dan layanan yang diperlukan.
 - MVP lokal harus tetap bisa diuji melalui emulator tanpa harus melakukan deployment publik.
 
 ## 4. Struktur direktori target
@@ -112,7 +119,42 @@ Firestore event -> backend sync job -> Google Calendar API -> simpan external ca
 ### Export
 Pengurus memilih filter/periode -> backend memeriksa izin -> membentuk CSV/XLSX atau Google Sheet -> hasil tersedia untuk pengguna berwenang.
 
-## 6. Prinsip implementasi
+## 6. Implementasi Firebase (aktif) dan sisa pekerjaan
+
+Firebase sudah dipakai sejak 24 Okt 2026 (T010 `DONE`). Lapisan repository tetap menjadi batas
+antara UI/Server Actions dan database:
+
+- **Kontrak data:** `src/features/products/repository.ts` mendefinisikan `ProductRepository`
+  (`list` dengan paginasi/filter/pencarian, `getById`, `create`, `update`, `setStatus`,
+  `addVariant`, `updateVariant`, `removeVariant`). Komponen dan Server Actions hanya bergantung
+  pada kontrak ini.
+- **Implementasi aktif:** `repository.firestore.ts` memakai **Firebase Admin SDK** di server
+  (koleksi `products` + subcollection `variants`). Instance Firestore dapat diinjeksi lewat
+  konstruktor sehingga test berjalan terhadap emulator. Timestamp memakai
+  `FieldValue.serverTimestamp()`; `createdAt`/`createdBy` tidak pernah ditimpa.
+- **Mengapa bukan Web SDK di server:** Web SDK yang dipanggil dari Server Action berjalan tanpa
+  identitas pengguna, sehingga ditolak rules dan aktornya tidak dapat dipercaya. Admin SDK
+  melewati Security Rules, sehingga otorisasi wajib dilakukan pemanggil (`requirePermission`).
+- **Pencarian:** Firestore tidak mendukung substring match. `list()` mengambil jendela maksimal
+  `SEARCH_SCAN_LIMIT = 500` dokumen lalu memfilter di memori. Bila katalog membesar, tambahkan
+  search index (Algolia/Typesense) atau field pencarian ter-normalisasi.
+- **Fallback lokal:** `repository.json.ts` (`.data/products.json`) dipertahankan untuk unit test
+  dan pengembangan offline; UI tidak lagi memakainya.
+- **Validasi server:** `src/features/products/schema.ts` (Zod) mem-parse `FormData` sebelum
+  repository dipanggil; harga/HPP/status tidak pernah dipercaya dari browser. Uang disimpan
+  sebagai integer IDR.
+- **Otorisasi terpusat:** `src/lib/permissions/policy.ts` (matriks role → permission) dan
+  `src/lib/auth/session.ts` (`getSession`, `requirePermission`). Role berasal dari custom claim
+  Firebase Auth (`npm run set:role`), dan `firestore.rules` mencerminkan matriks yang sama.
+  Sesi prototipe hanya aktif bila `NODE_ENV !== "production"` **dan**
+  `WORKSPACE_PROTOTYPE_ROLE` diset; cookie tidak valid menghasilkan sesi anonim, bukan fallback.
+  Setiap Server Action tetap memanggil `requirePermission` karena action dapat dipanggil langsung
+  melalui POST.
+- **Rute workspace:** karena shell memakai `usePathname()` (dan nantinya cookie autentikasi),
+  grup `(workspace)` mengekspor `instant = false` sehingga dirender per request. Tinjau ulang
+  setelah auth stabil agar prefetch/instant navigation bisa diaktifkan kembali.
+
+## 7. Prinsip implementasi
 
 - Gunakan server-only modules untuk akses admin SDK dan secret.
 - Jangan mengimpor Firebase Admin SDK ke client components.

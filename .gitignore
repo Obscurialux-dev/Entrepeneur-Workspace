@@ -40,6 +40,9 @@ firebase-debug.log
 firestore-debug.log
 ui-debug.log
 
+# local prototype persistence (until Firestore is wired)
+/.data/
+
 # vercel
 .vercel
 

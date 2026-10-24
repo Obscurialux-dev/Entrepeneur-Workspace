@@ -45,6 +45,10 @@ Varian dapat berupa subcollection `products/{productId}/variants/{variantId}`:
 - `active`
 - `createdAt`, `updatedAt`
 
+> Catatan implementasi prototipe (T020): varian disimpan sebagai array `variants` di dalam dokumen
+> produk pada `.data/products.json`. Saat Firestore diaktifkan, pindahkan ke subcollection
+> `products/{productId}/variants/{variantId}` tanpa mengubah kontrak repository, validasi, atau UI.
+
 ### `vendors/{vendorId}`
 - `name`
 - `contactName` (opsional)

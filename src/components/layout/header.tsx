@@ -1,8 +1,11 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
+import { signOut } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getClientAuth } from "@/lib/firebase/client.ts";
 
 interface HeaderProps {
   title: string;
@@ -19,6 +22,21 @@ export function Header({
   className,
   onMenuClick,
 }: HeaderProps) {
+  const router = useRouter();
+
+  async function handleSignOut() {
+    try {
+      const auth = getClientAuth();
+      await signOut(auth);
+    } catch {
+      // Sign-out on the client is best-effort; the server route always clears
+      // the session cookie.
+    }
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  }
+
   return (
     <header
       className={cn(
@@ -81,6 +99,14 @@ export function Header({
                 d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
               />
             </svg>
+          </Button>
+          <Button
+            onClick={handleSignOut}
+            variant="ghost"
+            size="sm"
+            aria-label="Keluar"
+          >
+            Keluar
           </Button>
           <div
             className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground"

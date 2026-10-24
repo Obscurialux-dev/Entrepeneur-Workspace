@@ -72,7 +72,7 @@ async function verifySessionCookie(token: string | undefined): Promise<Workspace
   if (!token) return null;
 
   try {
-    const auth = await getAdminAuth();
+    const auth = getAdminAuth();
     const decoded = await auth.verifySessionCookie(token, true);
     const role: Role | null = isRole(decoded.role) ? decoded.role : null;
     return {

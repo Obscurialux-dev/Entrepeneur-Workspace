@@ -12,7 +12,7 @@ export async function POST(): Promise<Response> {
   // entirely server-side with the Admin SDK; no credentials reach the client.
   if (token) {
     try {
-      const auth = await getAdminAuth();
+      const auth = getAdminAuth();
       const decoded = await auth.verifySessionCookie(token, true);
       await auth.revokeRefreshTokens(decoded.uid);
     } catch {

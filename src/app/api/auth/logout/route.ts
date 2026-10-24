@@ -12,8 +12,9 @@ export async function POST(): Promise<Response> {
   // entirely server-side with the Admin SDK; no credentials reach the client.
   if (token) {
     try {
-      const decoded = await getAdminAuth().verifySessionCookie(token, true);
-      await getAdminAuth().revokeRefreshTokens(decoded.uid);
+      const auth = await getAdminAuth();
+      const decoded = await auth.verifySessionCookie(token, true);
+      await auth.revokeRefreshTokens(decoded.uid);
     } catch {
       // Cookie is invalid or already revoked; continue clearing it anyway.
     }

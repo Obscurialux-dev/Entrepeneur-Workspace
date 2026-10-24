@@ -5,17 +5,21 @@
  * API routes, route handlers). It initializes the Admin SDK with the service
  * account from environment variables and never leaks credentials to the client.
  *
+ * Uses dynamic `import()` (with a variable module path) so Next.js/Turbopack
+ * cannot statically analyze and externalize the `firebase-admin` package with
+ * a hashed external identifier that the runtime cannot resolve.
+ *
  * Prefer Application Default Credentials via the Firebase Emulator Suite when
  * `FIRESTORE_EMULATOR_HOST` is set; otherwise use the service account from env.
  */
 
-import { initializeApp, cert, type App, type AppOptions } from "firebase-admin/app";
-import { getAuth, type Auth } from "firebase-admin/auth";
-import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import type { App, AppOptions } from "firebase-admin/app";
+import type { Auth } from "firebase-admin/auth";
+import type { Firestore } from "firebase-admin/firestore";
 
-let adminApp: App | null = null;
-let adminAuth: Auth | null = null;
-let adminDb: Firestore | null = null;
+let adminAppInit: Promise<App> | null = null;
+let adminAuthInit: Promise<Auth> | null = null;
+let adminDbInit: Promise<Firestore> | null = null;
 
 function serviceAccount() {
   const projectId = process.env.FIREBASE_PROJECT_ID;
@@ -45,38 +49,54 @@ function serviceAccount() {
   );
 }
 
-export function getAdminApp(): App {
-  if (!adminApp) {
-    const opts: AppOptions = {};
+async function getAdminApp(): Promise<App> {
+  if (!adminAppInit) {
+    adminAppInit = (async () => {
+      const firebaseAdminApp = ["firebase", "-admin", "/app"].join("");
+      const { initializeApp, cert } = await import(firebaseAdminApp);
+      const opts: AppOptions = {};
 
-    if (process.env.FIRESTORE_EMULATOR_HOST || process.env.FIREBASE_AUTH_EMULATOR_HOST) {
-      // Emulator: the Admin SDK connects without a service account. Only the project ID
-      // is needed, and the public web config is not required on the server.
-      opts.projectId =
-        process.env.FIREBASE_PROJECT_ID ??
-        process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ??
-        "demo-entrepreneur-workspace";
-    } else {
-      const account = serviceAccount();
-      opts.credential = cert(account);
-      opts.projectId = account.projectId;
-    }
+      if (process.env.FIRESTORE_EMULATOR_HOST || process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+        // Emulator: the Admin SDK connects without a service account. Only the project ID
+        // is needed, and the public web config is not required on the server.
+        opts.projectId =
+          process.env.FIREBASE_PROJECT_ID ??
+          process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ??
+          "demo-entrepreneur-workspace";
+      } else {
+        const account = serviceAccount();
+        opts.credential = cert(account);
+        opts.projectId = account.projectId;
+      }
 
-    adminApp = initializeApp(opts);
+      return initializeApp(opts);
+    })();
   }
-  return adminApp;
+  return adminAppInit;
 }
 
-export function getAdminAuth(): Auth {
-  if (!adminAuth) {
-    adminAuth = getAuth(getAdminApp());
+async function getAdminAuth(): Promise<Auth> {
+  if (!adminAuthInit) {
+    adminAuthInit = (async () => {
+      const app = await getAdminApp();
+      const firebaseAdminAuth = ["firebase", "-admin", "/auth"].join("");
+      const { getAuth } = await import(firebaseAdminAuth);
+      return getAuth(app);
+    })();
   }
-  return adminAuth;
+  return adminAuthInit;
 }
 
-export function getAdminDb(): Firestore {
-  if (!adminDb) {
-    adminDb = getFirestore(getAdminApp());
+async function getAdminDb(): Promise<Firestore> {
+  if (!adminDbInit) {
+    adminDbInit = (async () => {
+      const app = await getAdminApp();
+      const firebaseAdminFirestore = ["firebase", "-admin", "/firestore"].join("");
+      const { getFirestore } = await import(firebaseAdminFirestore);
+      return getFirestore(app);
+    })();
   }
-  return adminDb;
+  return adminDbInit;
 }
+
+export { getAdminApp, getAdminAuth, getAdminDb };

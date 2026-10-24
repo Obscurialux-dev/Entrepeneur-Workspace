@@ -20,8 +20,9 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   try {
-    const decoded = await getAdminAuth().verifyIdToken(idToken);
-    const sessionCookie = await getAdminAuth().createSessionCookie(idToken, {
+    const auth = await getAdminAuth();
+    const decoded = await auth.verifyIdToken(idToken);
+    const sessionCookie = await auth.createSessionCookie(idToken, {
       expiresIn: SESSION_DURATION_MS,
     });
 

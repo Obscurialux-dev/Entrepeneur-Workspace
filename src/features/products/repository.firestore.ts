@@ -69,8 +69,8 @@ export class FirestoreProductRepository implements ProductRepository {
     this.injectedDb = db;
   }
 
-  private db(): Firestore {
-    return this.injectedDb ?? getAdminDb();
+  private async db(): Promise<Firestore> {
+    return this.injectedDb ?? (await getAdminDb());
   }
 
   async list(params: ListProductsParams = {}): Promise<ProductPage> {
@@ -82,7 +82,7 @@ export class FirestoreProductRepository implements ProductRepository {
     const search = params.search?.trim().toLowerCase() ?? "";
     const status = params.status ?? "all";
 
-    const db = this.db();
+    const db = await this.db();
     let base: Query = db.collection(PRODUCTS_COLLECTION);
     if (status !== "all") {
       base = base.where("status", "==", status);
@@ -126,7 +126,8 @@ export class FirestoreProductRepository implements ProductRepository {
   }
 
   private async fetchVariants(productId: string): Promise<ProductVariant[]> {
-    const snapshot = await this.db()
+    const db = await this.db();
+    const snapshot = await db
       .collection(PRODUCTS_COLLECTION)
       .doc(productId)
       .collection(VARIANTS_SUBCOLLECTION)
@@ -137,7 +138,8 @@ export class FirestoreProductRepository implements ProductRepository {
   }
 
   async getById(id: string): Promise<Product | null> {
-    const snapshot = await this.db().collection(PRODUCTS_COLLECTION).doc(id).get();
+    const db = await this.db();
+    const snapshot = await db.collection(PRODUCTS_COLLECTION).doc(id).get();
     if (!snapshot.exists) return null;
 
     return productFromDoc(snapshot, await this.fetchVariants(id));
@@ -153,7 +155,7 @@ export class FirestoreProductRepository implements ProductRepository {
   }
 
   async create(draft: ProductDraft, actorUid: string): Promise<Product> {
-    const db = this.db();
+    const db = await this.db();
     const sku = normalizeSku(draft.sku);
 
     const duplicate = await db
@@ -186,7 +188,7 @@ export class FirestoreProductRepository implements ProductRepository {
     status: ProductStatus,
     actorUid: string,
   ): Promise<Product> {
-    const db = this.db();
+    const db = await this.db();
     const ref = db.collection(PRODUCTS_COLLECTION).doc(id);
     const snapshot = await ref.get();
     if (!snapshot.exists) {
@@ -207,7 +209,7 @@ export class FirestoreProductRepository implements ProductRepository {
     draft: ProductDraft,
     actorUid: string,
   ): Promise<Product> {
-    const db = this.db();
+    const db = await this.db();
     const ref = db.collection(PRODUCTS_COLLECTION).doc(id);
     const snapshot = await ref.get();
     if (!snapshot.exists) {
@@ -238,7 +240,7 @@ export class FirestoreProductRepository implements ProductRepository {
   }
 
   async addVariant(productId: string, draft: VariantDraft): Promise<Product> {
-    const db = this.db();
+    const db = await this.db();
     const productRef = db.collection(PRODUCTS_COLLECTION).doc(productId);
     const productSnapshot = await productRef.get();
     if (!productSnapshot.exists) {
@@ -265,7 +267,7 @@ export class FirestoreProductRepository implements ProductRepository {
     variantId: string,
     draft: VariantDraft,
   ): Promise<Product> {
-    const db = this.db();
+    const db = await this.db();
     const productRef = db.collection(PRODUCTS_COLLECTION).doc(productId);
     const productSnapshot = await productRef.get();
     if (!productSnapshot.exists) {
@@ -297,7 +299,7 @@ export class FirestoreProductRepository implements ProductRepository {
   }
 
   async removeVariant(productId: string, variantId: string): Promise<Product> {
-    const db = this.db();
+    const db = await this.db();
     const productRef = db.collection(PRODUCTS_COLLECTION).doc(productId);
     const productSnapshot = await productRef.get();
     if (!productSnapshot.exists) {
